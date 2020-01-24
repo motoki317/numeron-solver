@@ -18,13 +18,30 @@ const (
 )
 
 func main() {
-	simulateGame(10000, false)
+	simulateGame(1000, false)
 }
 
 // Manually plays the game.
 func game() {
 	c := newInteractiveClient()
 	simulateGameOnce(c, true)
+}
+
+// (When we do not know the answer) Interactively records answers and supports solving the game.
+func supportSolving() {
+	sim := newInteractiveSimulator()
+	solver := numeron.NewSolver(charLength, []rune(charSet))
+
+	for len(solver.States) > 1 {
+		ans, err := sim.askAnswer(solver.States)
+		if err != nil {
+			fmt.Println(err)
+		} else {
+			solver.RecordAnswer(*ans)
+		}
+	}
+
+	fmt.Printf("Finished, took %v total attempts", solver.Attempts)
 }
 
 // Simulates the game.
@@ -34,6 +51,7 @@ func simulateGame(count int, debug bool) {
 
 	clients["random"] = newRandomClient()
 	clients["first"] = &firstClient{}
+	clients["different"] = newDifferentClient()
 
 	for k, v := range clients {
 		totalAttempts[k] = 0
@@ -51,17 +69,19 @@ func simulateGame(count int, debug bool) {
 func simulateGameOnce(client client, debug bool) int {
 	solver := numeron.NewSolver(charLength, []rune(charSet))
 	// pick a random state for answer
-	rc := newRandomClient()
-	answer, _ := rc.query(solver.States)
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	answer := solver.States[r.Intn(len(solver.States))]
 	if debug {
 		printStates(solver.States)
 	}
 
 	// simulate the game
+	previous := make([]*numeron.Answer, 0)
 	for {
-		picked, _ := client.query(solver.States)
+		picked, _ := client.query(solver.States, previous)
 		result := answer.Check(picked)
 		solver.RecordAnswer(result)
+		previous = append(previous, &result)
 
 		if debug {
 			fmt.Printf("%v-th call: %v, %v hit, %v blow",
@@ -82,7 +102,7 @@ func simulateGameOnce(client client, debug bool) int {
 
 // When we do not know the answer and want to know all possible remaining combinations
 type simulator interface {
-	recordAnswer([]*numeron.State) (*numeron.Answer, error)
+	askAnswer([]*numeron.State) (*numeron.Answer, error)
 }
 
 type interactiveSimulator struct {
@@ -92,7 +112,7 @@ type interactiveSimulator struct {
 
 // Client plays the game
 type client interface {
-	query([]*numeron.State) (*numeron.State, error)
+	query(current []*numeron.State, previous []*numeron.Answer) (*numeron.State, error)
 }
 
 type interactiveClient struct {
@@ -108,6 +128,11 @@ type randomClient struct {
 // first client always picks the first possible combination when sorted by dictionary.
 type firstClient struct{}
 
+// this client always tries to pick unused numbers if possible.
+type differentClient struct {
+	rand *rand.Rand
+}
+
 func newInteractiveSimulator() *interactiveSimulator {
 	reader := bufio.NewReader(os.Stdin)
 	reStr := fmt.Sprintf("([0-9]{%v}) ([0-%v]) ([0-%v])", charLength, charLength, charLength)
@@ -120,11 +145,11 @@ func newInteractiveSimulator() *interactiveSimulator {
 	}
 }
 
-func (s *interactiveSimulator) recordAnswer(states []*numeron.State) (*numeron.Answer, error) {
+func (s *interactiveSimulator) askAnswer(states []*numeron.State) (*numeron.Answer, error) {
 	printStates(states)
 
 	fmt.Println("Type in \"end\" to end and show result.")
-	fmt.Print("Next recordAnswer in format of \"answer hit blow\": ")
+	fmt.Print("Next answer in format of \"answer hit blow\": ")
 	text, err := s.reader.ReadString('\n')
 	if err != nil {
 		panic(err)
@@ -165,7 +190,7 @@ func newInteractiveClient() *interactiveClient {
 	}
 }
 
-func (c *interactiveClient) query(states []*numeron.State) (*numeron.State, error) {
+func (c *interactiveClient) query(states []*numeron.State, previous []*numeron.Answer) (*numeron.State, error) {
 	fmt.Print("Next answer: ")
 	text, err := c.reader.ReadString('\n')
 	if err != nil {
@@ -188,13 +213,49 @@ func newRandomClient() *randomClient {
 	}
 }
 
-func (c *randomClient) query(states []*numeron.State) (*numeron.State, error) {
+func newDifferentClient() *differentClient {
+	return &differentClient{
+		rand: rand.New(rand.NewSource(time.Now().UnixNano())),
+	}
+}
+
+func (c *randomClient) query(states []*numeron.State, previous []*numeron.Answer) (*numeron.State, error) {
 	i := c.rand.Intn(len(states))
 	return states[i], nil
 }
 
-func (c *firstClient) query(states []*numeron.State) (*numeron.State, error) {
+func (c *firstClient) query(states []*numeron.State, previous []*numeron.Answer) (*numeron.State, error) {
 	return states[0], nil
+}
+
+func (c *differentClient) query(states []*numeron.State, previous []*numeron.Answer) (*numeron.State, error) {
+	used := make(map[rune]bool)
+	for _, p := range previous {
+		for _, r := range p.Query.Numbers {
+			used[r] = true
+		}
+	}
+
+	calcRank := func(state *numeron.State) (rank int) {
+		for _, r := range state.Numbers {
+			if isUsed, ok := used[r]; !isUsed || !ok {
+				rank++
+			}
+		}
+		return
+	}
+
+	maxRank := -1
+	var picked numeron.State
+	for _, state := range states {
+		rank := calcRank(state)
+		if maxRank < rank {
+			maxRank = rank
+			picked = *state
+		}
+	}
+
+	return &picked, nil
 }
 
 func printStates(states []*numeron.State) {
