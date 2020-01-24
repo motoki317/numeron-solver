@@ -18,23 +18,33 @@ const (
 )
 
 func main() {
-	count := 10000
-	totalAttemptsRandom := 0
-	totalAttemptsFirst := 0
-	debug := false
+	simulateGame(10000, false)
+}
 
-	rc := newRandomClient()
-	fc := &firstClient{}
+// Manually plays the game.
+func game() {
+	c := newInteractiveClient()
+	simulateGameOnce(c, true)
+}
 
-	for i := 0; i < count; i++ {
-		totalAttemptsRandom += simulateGameOnce(rc, debug)
+// Simulates the game.
+func simulateGame(count int, debug bool) {
+	totalAttempts := make(map[string]int)
+	clients := make(map[string]client)
+
+	clients["random"] = newRandomClient()
+	clients["first"] = &firstClient{}
+
+	for k, v := range clients {
+		totalAttempts[k] = 0
+		for i := 0; i < count; i++ {
+			totalAttempts[k] += simulateGameOnce(v, debug)
+		}
 	}
-	for i := 0; i < count; i++ {
-		totalAttemptsFirst += simulateGameOnce(fc, debug)
-	}
 
-	fmt.Printf("Random client: %v attempts were made.\n", float64(totalAttemptsRandom)/float64(count))
-	fmt.Printf("First client: %v attempts were made.\n", float64(totalAttemptsFirst)/float64(count))
+	for k := range clients {
+		fmt.Printf("%v client: %v attempts were made.\n", k, float64(totalAttempts[k])/float64(count))
+	}
 }
 
 // simulate the game once and returns how many attempts it took.
@@ -156,10 +166,7 @@ func newInteractiveClient() *interactiveClient {
 }
 
 func (c *interactiveClient) query(states []*numeron.State) (*numeron.State, error) {
-	printStates(states)
-
-	fmt.Println("Type in \"end\" to end and show result.")
-	fmt.Print("Next recordAnswer in format of \"answer hit blow\": ")
+	fmt.Print("Next answer: ")
 	text, err := c.reader.ReadString('\n')
 	if err != nil {
 		panic(err)
@@ -188,21 +195,6 @@ func (c *randomClient) query(states []*numeron.State) (*numeron.State, error) {
 
 func (c *firstClient) query(states []*numeron.State) (*numeron.State, error) {
 	return states[0], nil
-}
-
-func validateInteractive() {
-	reader := bufio.NewReader(os.Stdin)
-	answer := numeron.State{Numbers: []rune("5460")}
-	for {
-		text, err := reader.ReadString('\n')
-		if err != nil {
-			panic(err)
-		}
-		res := answer.Check(&numeron.State{
-			Numbers: []rune(text),
-		})
-		fmt.Printf("Hit: %v, Blow: %v", res.Hit, res.Blow)
-	}
 }
 
 func printStates(states []*numeron.State) {
