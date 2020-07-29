@@ -29,7 +29,7 @@ func NewInteractiveSimulator(charLength int) *InteractiveSimulator {
 	}
 }
 
-func (s *InteractiveSimulator) AskAnswer(states []*numeron.State) (*numeron.Answer, error) {
+func (s *InteractiveSimulator) AskAnswer() (*numeron.Answer, error) {
 	fmt.Println("Type in \"end\" to end and show result.")
 	fmt.Print("Next answer in format of \"answer hit blow\": ")
 	text, err := s.reader.ReadString('\n')

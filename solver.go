@@ -1,16 +1,17 @@
 package numeron_solver
 
 type Solver struct {
-	Attempts int
-	States   []*State
+	Attempts        int
+	States          []*State
+	allowDuplicates bool
 }
 
-func NewSolver(charLength int, charSet []rune) Solver {
+func NewSolver(charLength int, charSet []rune, allowDuplicates bool) Solver {
 	states := make([]*State, 0)
 
-	cases := prepareStates(charLength, charSet, make([]rune, 0), make(map[rune]bool))
+	cases := prepareStates(charLength, charSet, make([]rune, 0), make(map[rune]bool), allowDuplicates)
 	for _, numbers := range cases {
-		states = append(states, &State{Numbers:numbers})
+		states = append(states, &State{Numbers: numbers})
 	}
 
 	return Solver{States: states}
@@ -27,7 +28,7 @@ func (s *Solver) RecordAnswer(ans Answer) {
 	s.States = next
 }
 
-func prepareStates(remainingLength int, charSet []rune, chars []rune, used map[rune]bool) [][]rune {
+func prepareStates(remainingLength int, charSet []rune, chars []rune, used map[rune]bool, allowDuplicates bool) [][]rune {
 	ret := make([][]rune, 0)
 
 	if remainingLength == 0 {
@@ -38,12 +39,11 @@ func prepareStates(remainingLength int, charSet []rune, chars []rune, used map[r
 	}
 
 	for _, char := range charSet {
-		if isUsed, ok := used[char]; isUsed && ok {
+		if isUsed, ok := used[char]; isUsed && ok && !allowDuplicates {
 			continue
 		}
-		used[char] = true
 		chars = append(chars, char)
-		ret = append(ret, prepareStates(remainingLength - 1, charSet, chars, used)...)
+		ret = append(ret, prepareStates(remainingLength-1, charSet, chars, used, allowDuplicates)...)
 		chars = chars[:len(chars)-1]
 		delete(used, char)
 	}

@@ -11,8 +11,9 @@ import (
 )
 
 const (
-	charLength = 4
-	charSet    = "0123456789"
+	charLength      = 4
+	charSet         = "0123456789"
+	allowDuplicates = true
 )
 
 func main() {
@@ -30,11 +31,11 @@ func game() {
 // (When we do not know the answer) Interactively records answers and supports solving the game.
 func supportSolving() {
 	sim := simulator.NewInteractiveSimulator(charLength)
-	solver := numeron.NewSolver(charLength, []rune(charSet))
+	solver := numeron.NewSolver(charLength, []rune(charSet), allowDuplicates)
 
 	for len(solver.States) > 1 {
 		printStates(solver.States)
-		ans, err := sim.AskAnswer(solver.States)
+		ans, err := sim.AskAnswer()
 		if err != nil {
 			fmt.Println(err)
 		} else {
@@ -69,7 +70,7 @@ func simulateGames(count int, debug bool) {
 
 // simulate the game once and returns how many attempts it took.
 func simulateGameOnce(client client.Client, debug bool) int {
-	solver := numeron.NewSolver(charLength, []rune(charSet))
+	solver := numeron.NewSolver(charLength, []rune(charSet), allowDuplicates)
 	// pick a random state for answer
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	answer := solver.States[r.Intn(len(solver.States))]
