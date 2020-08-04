@@ -1,17 +1,20 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	numeron "github.com/motoki317/numeron-solver"
 	"github.com/motoki317/numeron-solver/client"
 	"github.com/motoki317/numeron-solver/simulator"
 	"math/rand"
+	"os"
+	"regexp"
 	"strings"
 	"time"
 )
 
 const (
-	charLength      = 4
+	charLength      = 5
 	charSet         = "0123456789"
 	allowDuplicates = true
 )
@@ -28,10 +31,27 @@ func game() {
 	simulateGameOnce(c, true)
 }
 
+var gradeRegexp = regexp.MustCompile("\\d{2}[BMD]")
+
 // (When we do not know the answer) Interactively records answers and supports solving the game.
 func supportSolving() {
 	sim := simulator.NewInteractiveSimulator(charLength)
-	solver := numeron.NewSolver(charLength, []rune(charSet), allowDuplicates)
+	var gradeString string
+	for {
+		reader := bufio.NewReader(os.Stdin)
+		fmt.Print("Input grade (e.g. 19B): ")
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			panic(err)
+		}
+		if !gradeRegexp.MatchString(line) {
+			fmt.Println("Invalid input. Try again.")
+			continue
+		}
+		gradeString = line
+		break
+	}
+	solver := numeron.NewSolver(charLength, []rune(charSet), allowDuplicates, gradeString)
 
 	for len(solver.States) > 1 {
 		printStates(solver.States)
@@ -70,7 +90,7 @@ func simulateGames(count int, debug bool) {
 
 // simulate the game once and returns how many attempts it took.
 func simulateGameOnce(client client.Client, debug bool) int {
-	solver := numeron.NewSolver(charLength, []rune(charSet), allowDuplicates)
+	solver := numeron.NewSolver(charLength, []rune(charSet), allowDuplicates, "")
 	// pick a random state for answer
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	answer := solver.States[r.Intn(len(solver.States))]
@@ -105,7 +125,7 @@ func simulateGameOnce(client client.Client, debug bool) int {
 
 func printStates(states []*numeron.State) {
 	arr := make([]string, 0)
-	if len(states) < 100 {
+	if len(states) < 1500 {
 		for _, state := range states {
 			arr = append(arr, string(state.Numbers))
 		}
